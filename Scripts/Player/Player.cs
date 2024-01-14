@@ -9,7 +9,7 @@ public partial class Player : CharacterBody3D
     public float CurrentSpeed { get; set; } = 5.0f;
 
     [Export]
-    public float JumpVelocity { get; set; } = 4.5f;
+    public float JumpVelocity { get; set; } = 6.0f;
 
     // Get the gravity from the project settings to be synced with RigidBody nodes.
     private float gravity = ProjectSettings.GetSetting("physics/3d/default_gravity").AsSingle();
