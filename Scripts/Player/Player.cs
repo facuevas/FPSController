@@ -22,6 +22,8 @@ public partial class Player : CharacterBody3D
     private const float LerpSpeed = 10.0f;
     private const float StandingHeight = 1.8f;
     private const float CrouchingHeight = 1.3f;
+    private bool _isCrouching;
+    private bool _isSprinting;
 
     // Mouse Sensitivity
     // We will refactor this out eventually
@@ -32,13 +34,15 @@ public partial class Player : CharacterBody3D
     private Node3D _head;
     private CollisionShape3D _standingCollisionShape;
     private CollisionShape3D _crouchingCollisionShape;
+    private RayCast3D _rayCast;
 
     public override void _Ready()
     {
         Input.MouseMode = Input.MouseModeEnum.Captured;
         _head = GetNode<Node3D>("Head");
-        _standingCollisionShape = GetNode < CollisionShape3D>("StandingCollisionShape");
-        _crouchingCollisionShape = GetNode < CollisionShape3D>("CrouchingCollisionShape");
+        _standingCollisionShape = GetNode<CollisionShape3D>("StandingCollisionShape");
+        _crouchingCollisionShape = GetNode<CollisionShape3D>("CrouchingCollisionShape");
+        _rayCast = GetNode<RayCast3D>("RayCast3D");
     }
 
     public override void _Input(InputEvent @event)
@@ -65,26 +69,21 @@ public partial class Player : CharacterBody3D
 
     public override void _PhysicsProcess(double delta)
     {
+        PlayerCrouch(delta);
+        var velocity = PlayerMove(delta);
+        Velocity = velocity;
+        MoveAndSlide();
+    }
+
+    private Vector3 PlayerMove(double delta)
+    {
         Vector3 velocity = Velocity;
-        
-        if (Input.IsActionPressed(PlayerInputMapUtil.MoveCrouch))
-        {
-            _standingCollisionShape.Disabled = true;
-            _crouchingCollisionShape.Disabled = false;
-            CurrentSpeed = CrouchingSpeed;
-            _head.Position = _head.Position.Lerp(new Vector3(0f, CrouchingHeight, 0f), LerpSpeed * (float)delta);
-        }
-        else
-        {
-            _standingCollisionShape.Disabled = false;
-            _crouchingCollisionShape.Disabled = true;
-            _head.Position = _head.Position.Lerp(new Vector3(0f, StandingHeight, 0f), LerpSpeed * (float)delta);
-            CurrentSpeed = Input.IsActionPressed(PlayerInputMapUtil.MoveSprint) ? SprintingSpeed : WalkingSpeed;
-        }
 
         // Add the gravity.
         if (!IsOnFloor())
+        {
             velocity.Y -= gravity * (float)delta;
+        }
 
         // Handle Jump.
         if (Input.IsActionJustPressed(PlayerInputMapUtil.MoveJump) && IsOnFloor())
@@ -116,7 +115,49 @@ public partial class Player : CharacterBody3D
             velocity.Z = Mathf.MoveToward(Velocity.Z, 0, CurrentSpeed);
         }
 
-        Velocity = velocity;
-        MoveAndSlide();
+        return velocity;
+    }
+
+    private void PlayerCrouch(double delta)
+    {
+        // Player Crouch or Stand logic
+        if (Input.IsActionPressed(PlayerInputMapUtil.MoveCrouch))
+        {
+            _head.Position = _head.Position.Lerp(new Vector3(0f, CrouchingHeight, 0f), LerpSpeed * (float)delta);
+            _standingCollisionShape.Disabled = true;
+            _crouchingCollisionShape.Disabled = false;
+            _isCrouching = true;
+            _isSprinting = false;
+            CurrentSpeed = GetPlayerSpeed();
+        }
+        else if (!_rayCast.IsColliding())
+        {
+            _head.Position = _head.Position.Lerp(new Vector3(0f, StandingHeight, 0f), LerpSpeed * (float)delta);
+            _standingCollisionShape.Disabled = false;
+            _crouchingCollisionShape.Disabled = true;
+            _isCrouching = false;
+            _isSprinting = Input.IsActionPressed(PlayerInputMapUtil.MoveSprint);
+            CurrentSpeed = GetPlayerSpeed();
+        }
+    }
+
+    private float GetPlayerSpeed()
+    {
+        var lastSpeed = CurrentSpeed;
+        if (!IsOnFloor())
+        {
+            return lastSpeed;
+        }
+
+        if (_isCrouching)
+        {
+            return CrouchingSpeed;
+        }
+        else if (_isSprinting)
+        {
+            return SprintingSpeed;
+        }
+        
+        return WalkingSpeed;
     }
 }
